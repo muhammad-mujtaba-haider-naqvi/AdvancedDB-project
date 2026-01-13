@@ -11,12 +11,24 @@ except Exception:
 # Prefer MONGO_URI from env; fall back to localhost for ease of development
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
 
-client = MongoClient(MONGO_URI)
+# Optional in-memory mock DB for development/CI when a real MongoDB
+# server is not available. Enable by setting USE_MOCK_DB=1 in environment
+USE_MOCK = str(os.environ.get("USE_MOCK_DB", "0")).lower() in ("1", "true", "yes")
 
-db = client['emotion_db']
-emotion_logs = db['emotion_logs']
-users = db['users']
-user_memory = db['user_memory']
+if USE_MOCK:
+    try:
+        import mongomock
+        client = mongomock.MongoClient()
+    except Exception:
+        # Fallback to real MongoClient if mongomock isn't installed
+        client = MongoClient(MONGO_URI)
+else:
+    client = MongoClient(MONGO_URI)
+
+db = client.get_database('emotion_db')
+emotion_logs = db.get_collection('emotion_logs')
+users = db.get_collection('users')
+user_memory = db.get_collection('user_memory')
 
 def ping_db():
     try:

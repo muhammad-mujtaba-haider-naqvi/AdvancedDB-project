@@ -19,7 +19,7 @@ from datetime import timedelta
 
 import logging
 from .text_model import predict, predict_with_scores
-from .mongo_setup import emotion_logs, ping_db, user_memory, users
+from .mongo_setup import emotion_logs, ping_db, user_memory, users, db
 from .speech_model import transcribe
 
 app = FastAPI(title="Intelligent Emotion System")
@@ -152,9 +152,9 @@ async def predict_speech(
                     tmp_in_path = tmp_in.name
                 try:
                     conv_path = tmp_in_path + ".wav"
-                        subprocess.run([
-                            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
-                            '-y', '-i', tmp_in_path, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', conv_path
+                    subprocess.run([
+                        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+                        '-y', '-i', tmp_in_path, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', conv_path
                     ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     transcript_text = transcribe(conv_path)
                     transcript = (transcript_text or "").strip()
@@ -455,6 +455,20 @@ async def insights_summary(user_id: str, window_days: int = 30):
         return {"total": total, "top_emotion": top_emotion, "counts": counts, "mix": mix, "window_days": window_days}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/_debug/db_status")
+async def _debug_db_status():
+    try:
+        cols = db.list_collection_names()
+        return {
+            "db": getattr(db, 'name', None) or 'emotion_db',
+            "collections": cols,
+            "users_count": int(users.count_documents({})),
+            "emotion_logs_count": int(emotion_logs.count_documents({}))
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == '__main__':
     import uvicorn
